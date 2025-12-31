@@ -8,24 +8,27 @@ jobs:
   create-release:
     runs-on: ubuntu-latest
     outputs:
-      release_tag: ${{ steps.create_release.outputs.tag_name }}
+      release_tag: ${{ steps.set_version.outputs.version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Get version from package.json
-        run: echo "version=$(jq -r .version package.json)" >> $GITHUB_ENV
+      - name: Set version
+        id: set_version
+        run: |
+          VERSION=$(jq -r .version package.json)
+          echo "version=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Create GitHub release
-        id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ env.version }}
-          release_name: Release ${{ env.version }}
+          tag_name: ${{ steps.set_version.outputs.version }}
+          release_name: Release ${{ steps.set_version.outputs.version }}
           draft: false
-          prerelease: ${{ contains(env.version, 'beta') || contains(env.version, 'alpha') }}
+          prerelease: ${{ contains(steps.set_version.outputs.version, 'beta') || contains(steps.set_version.outputs.version, 'alpha') }}
 
   build-launcher:
     needs: create-release
@@ -35,7 +38,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
-      - name: Check out repository
+      - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Set up Node.js
