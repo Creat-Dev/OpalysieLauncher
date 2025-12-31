@@ -7,8 +7,6 @@ on:
 jobs:
   create-release:
     runs-on: ubuntu-latest
-    outputs:
-      release_id: ${{ steps.create_release.outputs.id }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -65,7 +63,7 @@ jobs:
           echo "Uploading files for $RUNNER_OS"
           if [ -d dist ]; then
             for file in dist/*; do
-              [ -f "$file" ] && gh release upload ${{ needs.create-release.outputs.release_id }} "$file" --clobber
+              [ -f "$file" ] && gh release upload "${{ env.version }}" "$file" --clobber
             done
           else
             echo "No dist/ folder found. Nothing to upload."
@@ -83,7 +81,7 @@ jobs:
           }
           if (Test-Path dist) {
             Get-ChildItem -Path dist | ForEach-Object {
-              gh release upload ${{ needs.create-release.outputs.release_id }} $_.FullName --clobber
+              gh release upload "${{ env.version }}" $_.FullName --clobber
             }
           } else {
             Write-Host "No dist/ folder found. Nothing to upload."
