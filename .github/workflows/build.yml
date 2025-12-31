@@ -32,13 +32,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
-      - name: Check out Git repository
+      - name: Check out repository
         uses: actions/checkout@v3
 
-      - name: Set up Node
+      - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 18.x
@@ -48,37 +48,52 @@ jobs:
         with:
           python-version: 3.x
 
-      - name: Installer les dépendances
+      - name: Install dependencies
         run: npm ci
         shell: bash
 
-      - name: Construire le launcher
-        run: npm run build
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Obfuscate Windows JS (optionnel)
+        if: matrix.os == 'windows-latest'
+        run: |
+          npm run obfuscate:windows
         shell: bash
 
-      - name: Upload des fichiers finaux vers la release
-        run: |
-          echo "Installation de la CLI GitHub..."
-          if ! command -v gh &> /dev/null; then
-            if [ $RUNNER_OS != 'Windows' ]; then
-              sudo apt update && sudo apt install gh -y || true
-            else
-              choco install gh -y
-            fi
-          fi
+      - name: Build launcher
+        run: npm run build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Upload files for Linux/macOS
+      - name: Upload release assets (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          echo "Uploading files for $RUNNER_OS"
           if [ -d dist ]; then
-            echo "Upload des fichiers du dossier dist/"
             for file in dist/*; do
-              if [ -f "$file" ]; then
-                echo "Upload de $file"
-                gh release upload ${{ needs.create-release.outputs.release_id }} "$file" --clobber
-              fi
+              [ -f "$file" ] && gh release upload ${{ needs.create-release.outputs.release_id }} "$file" --clobber
             done
           else
-            echo "Le dossier dist/ n'existe pas. Aucun fichier à uploader."
+            echo "No dist/ folder found. Nothing to upload."
           fi
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Upload files for Windows
+      - name: Upload release assets (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+            choco install gh -y
+          }
+          if (Test-Path dist) {
+            Get-ChildItem -Path dist | ForEach-Object {
+              gh release upload ${{ needs.create-release.outputs.release_id }} $_.FullName --clobber
+            }
+          } else {
+            Write-Host "No dist/ folder found. Nothing to upload."
+          }
+        shell: pwsh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
