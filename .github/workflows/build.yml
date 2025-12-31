@@ -69,10 +69,16 @@ jobs:
             fi
           fi
 
-          echo "Upload des fichiers du dossier dist/"
-          for file in dist/*; do
-            echo "Upload de $file"
-            gh release upload ${{ needs.create-release.outputs.release_id }} "$file" --clobber
-          done
+          if [ -d dist ]; then
+            echo "Upload des fichiers du dossier dist/"
+            for file in dist/*; do
+              if [ -f "$file" ]; then
+                echo "Upload de $file"
+                gh release upload ${{ needs.create-release.outputs.release_id }} "$file" --clobber
+              fi
+            done
+          else
+            echo "Le dossier dist/ n'existe pas. Aucun fichier à uploader."
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
