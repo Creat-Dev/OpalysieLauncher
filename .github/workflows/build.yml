@@ -1,5 +1,5 @@
-# module du helios launcher
 name: Launcher Build
+
 on:
   push:
     branches: [ master ]
@@ -7,14 +7,17 @@ on:
 jobs:
   create-release:
     runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create_release.outputs.id }}
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
-      - name: Get version
+      - name: Récupérer la version
         run: echo "version=$(jq -r .version package.json)" >> $GITHUB_ENV
-      
-      - name: Create Release
+
+      - name: Créer la release GitHub
         id: create_release
         uses: actions/create-release@v1
         env:
@@ -28,14 +31,13 @@ jobs:
   build-launcher:
     needs: create-release
     runs-on: ${{ matrix.os }}
-
     strategy:
       matrix:
-        os: [macos-14, ubuntu-latest, windows-latest]
+        os: [macos-latest, ubuntu-latest, windows-latest]
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v1
+        uses: actions/checkout@v3
 
       - name: Set up Node
         uses: actions/setup-node@v3
@@ -47,12 +49,28 @@ jobs:
         with:
           python-version: 3.x
 
-      - name: Install Dependencies
+      - name: Installer les dépendances
         run: npm ci
         shell: bash
 
-      - name: Build
-        env:
-          GH_TOKEN: ${{ secrets.github_token }}
+      - name: Construire le launcher
         run: npm run build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
+
+      - name: Archiver le build
+        run: |
+          if [ $RUNNER_OS == 'Windows' ]; then
+            powershell Compress-Archive -Path dist\* -DestinationPath dist.zip
+          else
+            zip -r dist.zip dist
+          fi
+
+      - name: Upload du build vers la release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./dist.zip
+          asset_name: dist-${{ matrix.os }}.zip
+          asset_content_type: application/zip
